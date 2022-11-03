@@ -2,7 +2,7 @@ import tool_box as tb
 import os
 from pdf2image import convert_from_path
 import shutil
-
+#conda install -c conda-forge poppler, pip install pdf2image, pillow, protobuf
 
 def load_dict(dict_path):
     address_dict = {}
