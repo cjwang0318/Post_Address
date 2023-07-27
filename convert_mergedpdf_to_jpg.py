@@ -1,11 +1,15 @@
 import tool_box as tb
 import os
 from pdf2image import convert_from_path
-import shutil
 import fitz
-#conda install -c conda-forge poppler
-#pip install pdf2image, pillow, protobuf
-#pip install --upgrade --force-reinstall pymupdf
+from tqdm import tqdm
+import json
+
+
+# conda install -c conda-forge poppler
+# https://github.com/Belval/pdf2image#how-to-install
+# pip install pdf2image pillow protobuf
+# pip install --upgrade --force-reinstall pymupdf
 
 def load_dict(dict_path):
     address_dict = {}
@@ -19,46 +23,63 @@ def load_dict(dict_path):
         address_dict[account_ID] = address
     return address_dict, account_list
 
+
 def page_search(filename, search_term):
     # filename = "example.pdf"
     # search_term = "invoice"
     pdf_document = fitz.open(filename)
     for current_page in range(len(pdf_document)):
         page = pdf_document.load_page(current_page)
+        result = None
         if page.search_for(search_term):
-            print("%s found on page %i" % (search_term, current_page))
-            result=current_page
+            # print("%s found on page %i" % (search_term, current_page))
+            result = current_page
             break
     return result
 
-if __name__ == '__main__':
-    fileName = "112.07"
-    address_dict, account_list = load_dict("./data/放翁帳戶地址.csv")
-    pdf_file = "./data/pdf_merge/" + fileName + ".pdf"
-    dict={}
-    not_convert_list = []
-    i = 1
-    total_num = len(account_list)
-    for account_ID in account_list:
-        j=0
-        address = address_dict.get(account_ID)
-        pageID = page_search(pdf_file, account_ID)
-        dict[j]=address
 
-    for account_ID in account_list:
-        print("目前進度：" + str(i) + "/" + str(total_num))
-        converted_file = "./data/converted/" + account_ID + ".pdf"
-        # print(os.path.exists(pdf_file))
-        address = address_dict.get(account_ID)
-        pageID=page_search(pdf_file, account_ID)
-        #print(pageID)
-        if os.path.exists(pdf_file):
-            pages = convert_from_path(pdf_file, 300, thread_count=4)
-            for page in pages:
+if __name__ == '__main__':
+    build_address_index = False
+    fileName = "112.07_sample"
+    address_dict, account_list = load_dict("./data/放翁帳戶地址.txt")
+    pdf_file = "./data/pdf_merge/" + fileName + ".pdf"
+    dict = {}
+    not_convert_list = []
+
+    # Get page number
+    if build_address_index:
+        print("Started Searching")
+        for account_ID in tqdm(account_list):
+            address = address_dict.get(account_ID)
+            pageID = page_search(pdf_file, account_ID)
+            if pageID == None:
+                not_convert_list.append(str(account_ID) + "\n")
+            else:
+                dict[pageID] = address
+        print("Started writing dictionary to a file")
+        with open("./data/pdf_merge/address_index.json", "w", encoding="utf8") as fp:
+            json.dump(dict, fp, ensure_ascii=False)  # encode dict into JSON
+        print("Done writing dict into json file")
+        # print(dict)
+    else:
+        with open("./data/pdf_merge/address_index.json", "r", encoding="utf8") as fp:
+            # Load the dictionary from the file
+            dict = json.load(fp)
+
+    # convert pdf to jpg
+    print("Started Converting")
+    if os.path.exists(pdf_file):
+        pages = convert_from_path(pdf_file, 300, thread_count=4, poppler_path=r'D:\poppler-23.07.0\Library\bin')
+        for page in tqdm(pages):
+            # print(pages.index(page))
+            if build_address_index:
+                address = dict.get(pages.index(page))
+            else:
+                address = dict.get(str(pages.index(page)))
+            if address == None:
+                page.save("./data/jpg/" + str(pages.index(page)) + ".jpg", 'JPEG')
+            else:
                 page.save("./data/jpg/" + address + ".jpg", 'JPEG')
-            shutil.move(pdf_file, converted_file)
-        else:
-            # print(address)
-            not_convert_list.append(address + "\n")
-        i = i + 1
+    else:
+        print("pdf file is not exist...")
     tb.write_file("./轉換失敗名單.txt", not_convert_list)
