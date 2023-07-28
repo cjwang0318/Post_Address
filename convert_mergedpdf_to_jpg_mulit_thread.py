@@ -4,6 +4,10 @@ from pdf2image import convert_from_path
 import fitz
 from tqdm import tqdm
 import json
+import time
+import threading
+import queue
+import sys
 
 
 # conda install -c conda-forge poppler
@@ -37,13 +41,31 @@ def page_search(filename, search_term):
             break
     return result
 
+# Worker 類別，負責處理資料
+class Worker(threading.Thread):
+  def __init__(self, queue, thread_ID, pdf_file, dict):
+    threading.Thread.__init__(self)
+    self.queue = queue
+    self.thread_ID = thread_ID
+    self.pdf_file = pdf_file
+    self.dict = dict
+
+  def run(self):
+    while self.queue.qsize() > 0:
+      # 取得新的資料
+      account_ID = self.queue.get()
+      # 處理資料
+      pageID = page_search(pdf_file, account_ID)
+      self.dict[account_ID]=pageID
+      print("Worker %d: %s->pageNum=%s" % (self.thread_ID, account_ID, pageID))
+
 
 if __name__ == '__main__':
     #################################################################
     #設定參數
     build_address_index = True # 是否要建立頁碼索引檔，如果不要就會讀取上次已經建立好的 ./data/pdf_merge/address_index.json
     fileName = "112.07.pdf" # 管理費帳單檔案
-    address_dict, account_list = load_dict("./data/放翁帳戶地址.csv") #放翁地址帳號索引
+    address_dict, account_list = load_dict("./data/放翁帳戶地址.txt") #放翁地址帳號索引
     #################################################################
     pdf_file = "./data/pdf_merge/" + fileName
     dict = {}
@@ -52,13 +74,44 @@ if __name__ == '__main__':
     # Get page number
     if build_address_index:
         print("Started Searching")
+        # 建立佇列
+        my_queue = queue.Queue()
+        # 將資料放入佇列
         for account_ID in tqdm(account_list):
-            address = address_dict.get(account_ID)
-            pageID = page_search(pdf_file, account_ID)
-            if pageID == None:
-                not_convert_list.append(str(account_ID) + "\n")
-            else:
-                dict[pageID] = address
+            my_queue.put(account_ID)
+        # 建立兩個 Worker
+        my_worker1 = Worker(my_queue, 1, pdf_file, dict)
+        my_worker2 = Worker(my_queue, 2, pdf_file, dict)
+        my_worker3 = Worker(my_queue, 3, pdf_file, dict)
+        my_worker4 = Worker(my_queue, 4, pdf_file, dict)
+        my_worker5 = Worker(my_queue, 5, pdf_file, dict)
+        my_worker6 = Worker(my_queue, 6, pdf_file, dict)
+
+        # 讓 Worker 開始處理資料
+        my_worker1.start()
+        my_worker2.start()
+        my_worker3.start()
+        my_worker4.start()
+        my_worker5.start()
+        my_worker6.start()
+
+        # 等待所有 Worker 結束
+        my_worker1.join()
+        my_worker2.join()
+        my_worker3.join()
+        my_worker4.join()
+        my_worker5.join()
+        my_worker6.join()
+        print(dict)
+        sys.exit()
+
+            # pageID = page_search(pdf_file, account_ID)
+            #
+            # address = address_dict.get(account_ID)
+            # if pageID == None:
+            #     not_convert_list.append(str(account_ID) + "\n")
+            # else:
+            #     dict[pageID] = address
         print("Started writing dictionary to a file")
         with open("./data/pdf_merge/address_index.json", "w", encoding="utf8") as fp:
             json.dump(dict, fp, ensure_ascii=False)  # encode dict into JSON
