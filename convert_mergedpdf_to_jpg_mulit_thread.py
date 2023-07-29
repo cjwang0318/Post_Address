@@ -63,7 +63,7 @@ class Worker(threading.Thread):
 if __name__ == '__main__':
     #################################################################
     #設定參數
-    build_address_index = True # 是否要建立頁碼索引檔，如果不要就會讀取上次已經建立好的 ./data/pdf_merge/address_index.json
+    build_address_index = False # 是否要建立頁碼索引檔，如果不要就會讀取上次已經建立好的 ./data/pdf_merge/address_index.json
     fileName = "112.07.pdf" # 管理費帳單檔案
     address_dict, account_list = load_dict("./data/放翁帳戶地址.csv") #放翁地址帳號索引
     #################################################################
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     else:
         with open("./data/pdf_merge/address_index.json", "r", encoding="utf8") as fp:
             # Load the dictionary from the file
-            dict = json.load(fp)
+            dict_pageID_address = json.load(fp)
     # 結束測量
     end = datetime.datetime.now()
     # 輸出結果
@@ -129,14 +129,14 @@ if __name__ == '__main__':
     # convert pdf to jpg
     print("Started Converting")
     if os.path.exists(pdf_file):
-        #pages = convert_from_path(pdf_file, 300, thread_count=8, poppler_path=r'D:\poppler-23.07.0\Library\bin')
-        pages = convert_from_path(pdf_file, 300, thread_count=8)
+        pages = convert_from_path(pdf_file, 300, thread_count=6, poppler_path=r'D:\poppler-23.07.0\Library\bin')
+        #pages = convert_from_path(pdf_file, 300, thread_count=6)
         for page in tqdm(pages):
             # print(pages.index(page))
             if build_address_index:
-                address = dict.get(pages.index(page))
+                address = dict_pageID_address.get(pages.index(page))
             else:
-                address = dict.get(str(pages.index(page)))
+                address = dict_pageID_address.get(str(pages.index(page)))
             if address == None:
                 page.save("./data/jpg/" + str(pages.index(page)) + ".jpg", 'JPEG')
             else:
